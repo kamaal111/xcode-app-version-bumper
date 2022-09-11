@@ -9,7 +9,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 )
 
@@ -30,22 +29,12 @@ func main() {
 }
 
 func BumpVersion(versionNumber *string, buildNumber *int, projectPath *string) {
-	definitiveBuildNumber, err := getDefinitiveBuildNumber(buildNumber)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	definitiveVersion, err := getDefinitiveVersion(versionNumber)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
 	definitiveProjectPath, err := getDefinitiveProjectPath(projectPath)
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	hasChanged, err := editNumbers(definitiveBuildNumber, definitiveVersion, definitiveProjectPath)
+	hasChanged, err := editNumbers(buildNumber, versionNumber, definitiveProjectPath)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -57,7 +46,14 @@ func BumpVersion(versionNumber *string, buildNumber *int, projectPath *string) {
 	}
 }
 
-func editNumbers(buildNumber int, versionNumber string, projectPath string) (bool, error) {
+func editNumbers(buildNumber *int, versionNumber *string, projectPath string) (bool, error) {
+	shouldUpdateBuildNumber := *buildNumber != 0 && buildNumber != nil
+	shouldUpdateVersionNumber := *versionNumber != "" && versionNumber != nil
+
+	if !shouldUpdateBuildNumber && !shouldUpdateVersionNumber {
+		return false, nil
+	}
+
 	fullProjectConfigurationFilepath, err := findFullProjectConfigurationFilePath(projectPath)
 	if err != nil {
 		return false, err
@@ -75,7 +71,7 @@ func editNumbers(buildNumber int, versionNumber string, projectPath string) (boo
 		isBuildNumber := strings.Contains(line, XCODE_BUILD_NUMBER_KEY)
 		isVersionNumber := strings.Contains(line, XCODE_VERSION_NUMBER_KEY)
 
-		if !isBuildNumber && !isVersionNumber {
+		if (!isBuildNumber || !shouldUpdateBuildNumber) && (!isVersionNumber || !shouldUpdateVersionNumber) {
 			continue
 		}
 
@@ -95,9 +91,9 @@ func editNumbers(buildNumber int, versionNumber string, projectPath string) (boo
 
 		var newLine string
 		if isBuildNumber {
-			newLine = fmt.Sprintf("%s%s = %d;", tabsToAdd, XCODE_BUILD_NUMBER_KEY, buildNumber)
+			newLine = fmt.Sprintf("%s%s = %d;", tabsToAdd, XCODE_BUILD_NUMBER_KEY, *buildNumber)
 		} else if isVersionNumber {
-			newLine = fmt.Sprintf("%s%s = %s;", tabsToAdd, XCODE_VERSION_NUMBER_KEY, versionNumber)
+			newLine = fmt.Sprintf("%s%s = %s;", tabsToAdd, XCODE_VERSION_NUMBER_KEY, *versionNumber)
 		}
 
 		if line == newLine {
@@ -176,39 +172,4 @@ func findFullProjectConfigurationFilePath(projectPath string) (string, error) {
 	xcodeProjectConfigurationFilepath := filepath.Join(projectPath, xcodeProjectFile.Name())
 
 	return xcodeProjectConfigurationFilepath, nil
-}
-
-func getDefinitiveVersion(flagValue *string) (string, error) {
-	if flagValue != nil && *flagValue != DEFAULT_STRING_FLAG {
-		return *flagValue, nil
-	}
-
-	var versionNumber string
-	fmt.Printf("Version number: ")
-	_, err := fmt.Scan(&versionNumber)
-	if err != nil {
-		return "", err
-	}
-
-	return versionNumber, nil
-}
-
-func getDefinitiveBuildNumber(flagValue *int) (int, error) {
-	if flagValue != nil && *flagValue != DEFAULT_INT_FLAG {
-		return *flagValue, nil
-	}
-
-	fmt.Printf("Build number: ")
-	var buildNumberInputString string
-	_, err := fmt.Scan(&buildNumberInputString)
-	if err != nil {
-		return 0, err
-	}
-
-	buildNumberInput, err := strconv.Atoi(buildNumberInputString)
-	if err != nil {
-		return 0, err
-	}
-
-	return buildNumberInput, nil
 }
